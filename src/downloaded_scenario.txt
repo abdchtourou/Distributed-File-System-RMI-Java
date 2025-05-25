@@ -1,0 +1,51 @@
+0- login and signup  //done
+1- go to home page:
+bring all categories 
+bring 5 ad from apartments for sale with show more button will navigate client to apartments for sale ADS //done
+-2 click on realEstateCategory and show all realEstate's subcategories //done
+-3 click  subcategory //done
+-4 apply all filters on subcategory and test it and test pagination //done
+-5 search using search term and test elastice search //done
+-6 save search term as prefer search term (with auth and without auth) //done
+-7 click on specific Ad and check it visited counter //done
+-8 click on phone number(try it with auth and without auth) //done
+-9 click on message(try it with auth and without auth) //done
+-10 like ad/unlike //done
+-11 go to ad's owner page and rate him //done
+-12 show all owner's ad info //done
+-13 show owner's ad ADs with filters //done
+-14 follow this user //done
+-15 unfollow this user //done
+-16 show follower //done
+-17 show following //done
+-18 try follow one or more follower or following //done
+
+
+//in panel
+-19 go to my profile and show my data with statistics data and follower and following count //done
+-20 try edit your info //done
+-21 show my follower and following and try follow/unfollow functions //done
+-22 go to rate section in my profile and show avg rate for my profile 
+-23 go to Wallet and show my points and my packages 
+-24 go to notification section (in this sprint there is no link as href)
+-25 try to chat with some user //done
+-26 go to my ads section and try filters //done
+-27 go to like ad section and prefer search term //done
+-28 go to showed ads //done
+-29 go to Draft section //done
+/// setting page not done
+-30 generate Invitation link and try signup with it (useing email and facebook and whatsapp) //done
+-31 go to services page to show all packages availabel to purchase with Advertising services //done
+-32 go to complaint page and Writing a complaint //done
+-33 try to add ad Try to distinguish this advertisement. //done
+-34 ad analysis //done
+
+
+
+
+
+
+///What remains to me
+make sure that status if exist not publish when i create new ad
+distinguish ad
+
