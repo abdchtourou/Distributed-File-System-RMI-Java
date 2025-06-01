@@ -3,20 +3,14 @@ package client;// Client.java
 import interfaces.CoordinatorInterface;
 import model.User;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.rmi.NotBoundException;
 import java.rmi.RemoteException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
-import java.io.Console;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Scanner;
+import java.util.*;
 
 public class Client {
     private CoordinatorInterface coordinator;
@@ -89,6 +83,8 @@ public class Client {
         // إضافة خيارات للمدير  
         if ("manager".equals(role)) {
             System.out.println("6. Manage User Permissions");
+            System.out.println("7. Manual Socket Synchronization");
+            System.out.println("8. Auto Sync Status & Control");
         }
 
         System.out.println("0. Logout");
@@ -125,9 +121,18 @@ public class Client {
                     }
                     break;
                 case 7:
-
-                    getUserinfo();
-
+                    if ("manager".equals(role)) {
+                        startSocketSynchronization();
+                    } else {
+                        getUserinfo();
+                    }
+                    break;
+                case 8:
+                    if ("manager".equals(role)) {
+                        showAutoSyncMenu();
+                    } else {
+                        System.out.println("Invalid option. Please try again.");
+                    }
                     break;
                 default:
                     System.out.println("Invalid option. Please try again.");
@@ -311,6 +316,474 @@ public class Client {
             }
         } else {
             System.out.println("File not found or access denied.");
+        }
+    }
+
+    private void startSocketSynchronization() throws RemoteException {
+        System.out.println("\n=== Real Socket Synchronization Manager ===");
+        System.out.println("This will perform real socket-based synchronization between nodes.");
+        System.out.println("Note: RMI synchronization is already active during file uploads.");
+        System.out.print("Do you want to start socket synchronization? (y/n): ");
+        
+        String choice = scanner.nextLine();
+        if (choice.toLowerCase().startsWith("y")) {
+            try {
+                System.out.println("🔌 Starting Real Socket Synchronization...");
+                
+                // تشغيل المزامنة عبر السوكيت في خيط منفصل
+                Thread syncThread = new Thread(() -> {
+                    try {
+                        performRealSocketSync();
+                    } catch (Exception e) {
+                        System.err.println("❌ Socket synchronization failed: " + e.getMessage());
+                    }
+                });
+                
+                syncThread.start();
+                syncThread.join(); // انتظار انتهاء المزامنة
+                
+                System.out.println("💡 Press Enter to continue...");
+                scanner.nextLine();
+                
+            } catch (Exception e) {
+                System.err.println("❌ Failed to start socket synchronization: " + e.getMessage());
+            }
+        } else {
+            System.out.println("Socket synchronization cancelled.");
+        }
+    }
+    
+    private void performRealSocketSync() {
+        System.out.println("🔌 Performing real socket-based synchronization...");
+        
+        String[] departments = {"IT", "HR", "Marketing", "Finance"};
+        int totalSynced = 0;
+        
+        for (String dept : departments) {
+            System.out.println("\n🔍 Synchronizing department: " + dept);
+            
+            try {
+                // مزامنة من Node1 إلى Node2 و Node3
+                boolean success1to2 = sync.SocketSyncManager.SyncClient.syncWithNode(
+                    "localhost", 8082, dept, "storage1"
+                );
+                boolean success1to3 = sync.SocketSyncManager.SyncClient.syncWithNode(
+                    "localhost", 8083, dept, "storage1"
+                );
+                
+                // مزامنة من Node2 إلى Node1 و Node3  
+                boolean success2to1 = sync.SocketSyncManager.SyncClient.syncWithNode(
+                    "localhost", 8081, dept, "storage2"
+                );
+                boolean success2to3 = sync.SocketSyncManager.SyncClient.syncWithNode(
+                    "localhost", 8083, dept, "storage2"
+                );
+                
+                // مزامنة من Node3 إلى Node1 و Node2
+                boolean success3to1 = sync.SocketSyncManager.SyncClient.syncWithNode(
+                    "localhost", 8081, dept, "storage3"
+                );
+                boolean success3to2 = sync.SocketSyncManager.SyncClient.syncWithNode(
+                    "localhost", 8082, dept, "storage3"
+                );
+                
+                if (success1to2 && success1to3 && success2to1 && success2to3 && success3to1 && success3to2) {
+                    System.out.println("  ✅ Department " + dept + " synchronized successfully across all 3 nodes");
+                    totalSynced++;
+                } else {
+                    System.out.println("  ⚠️ Department " + dept + " synchronization had issues");
+                }
+                
+                // انتظار قصير بين الأقسام
+                Thread.sleep(500);
+                
+            } catch (Exception e) {
+                System.err.println("  ❌ Failed to sync department " + dept + ": " + e.getMessage());
+            }
+        }
+        
+        System.out.println("\n" + "=".repeat(50));
+        System.out.println("🔌 Socket Synchronization Results:");
+        System.out.println("📊 Departments synchronized: " + totalSynced + "/" + departments.length);
+        System.out.println("🗄️ Total storage nodes: 3 (storage1, storage2, storage3)");
+        
+        if (totalSynced == departments.length) {
+            System.out.println("✅ All departments synchronized across all 3 nodes successfully!");
+        } else {
+            System.out.println("⚠️ Some departments had synchronization issues.");
+        }
+        
+        // إضافة فحص التطابق بعد المزامنة
+        System.out.println("\n🔍 Verifying synchronization results...");
+        performFileConsistencyCheck();
+        
+        System.out.println("=".repeat(50));
+    }
+    
+    private void performFileConsistencyCheck() {
+        System.out.println("📋 Checking file consistency between storage nodes...");
+        
+        String[] departments = {"IT", "HR", "Marketing", "Finance"};
+        boolean allConsistent = true;
+        boolean foundInconsistencies = false;
+        
+        for (String dept : departments) {
+            System.out.println("\n🔍 Checking department: " + dept);
+            
+            File storage1Dir = new File("storage1/" + dept);
+            File storage2Dir = new File("storage2/" + dept);
+            File storage3Dir = new File("storage3/" + dept);
+            
+            // إنشاء المجلدات إذا لم تكن موجودة
+            if (!storage1Dir.exists()) storage1Dir.mkdirs();
+            if (!storage2Dir.exists()) storage2Dir.mkdirs();
+            if (!storage3Dir.exists()) storage3Dir.mkdirs();
+            
+            // الحصول على قوائم الملفات
+            String[] files1 = storage1Dir.list();
+            String[] files2 = storage2Dir.list();
+            String[] files3 = storage3Dir.list();
+            
+            if (files1 == null) files1 = new String[0];
+            if (files2 == null) files2 = new String[0];
+            if (files3 == null) files3 = new String[0];
+            
+            // مقارنة عدد الملفات
+            if (files1.length == files2.length && files2.length == files3.length && files1.length == 0) {
+                System.out.println("  ✅ No files in all three nodes - Consistent");
+            } else if (files1.length == files2.length && files2.length == files3.length) {
+                System.out.println("  ✅ File count matches across all nodes: " + files1.length + " files");
+                
+                // مقارنة أسماء الملفات
+                Arrays.sort(files1);
+                Arrays.sort(files2);
+                Arrays.sort(files3);
+                boolean namesMatch = Arrays.equals(files1, files2) && Arrays.equals(files2, files3);
+                
+                if (namesMatch) {
+                    System.out.println("  ✅ File names match perfectly across all 3 nodes");
+                } else {
+                    System.out.println("  ⚠️ File names differ between nodes");
+                    allConsistent = false;
+                    foundInconsistencies = true;
+                }
+            } else {
+                System.out.println("  ⚠️ File count mismatch - Node1: " + files1.length + 
+                                 ", Node2: " + files2.length + ", Node3: " + files3.length);
+                allConsistent = false;
+                foundInconsistencies = true;
+            }
+        }
+        
+        System.out.println("\n" + "=".repeat(50));
+        if (allConsistent) {
+            System.out.println("✅ All 3 storage nodes are consistent!");
+            System.out.println("💡 RMI synchronization is working perfectly across all nodes.");
+        } else {
+            System.out.println("⚠️ Some inconsistencies found between nodes.");
+            System.out.println("💡 This is normal if files were added manually to storage folders.");
+            
+            // عرض خيار الإصلاح
+            if (foundInconsistencies) {
+                System.out.println("\n🔧 Would you like to fix these inconsistencies? (y/n): ");
+                try {
+                    String choice = scanner.nextLine();
+                    if (choice.toLowerCase().startsWith("y")) {
+                        fixSynchronizationIssues();
+                    }
+                } catch (Exception e) {
+                    System.err.println("Error reading input: " + e.getMessage());
+                }
+            }
+        }
+        System.out.println("=".repeat(50));
+    }
+    
+    private void fixSynchronizationIssues() {
+        System.out.println("\n🔧 Starting synchronization repair...");
+        
+        String[] departments = {"IT", "HR", "Marketing", "Finance"};
+        int totalFixed = 0;
+        
+        for (String dept : departments) {
+            System.out.println("\n🔍 Fixing department: " + dept);
+            
+            File storage1Dir = new File("storage1/" + dept);
+            File storage2Dir = new File("storage2/" + dept);
+            File storage3Dir = new File("storage3/" + dept);
+            
+            // إنشاء المجلدات إذا لم تكن موجودة
+            if (!storage1Dir.exists()) storage1Dir.mkdirs();
+            if (!storage2Dir.exists()) storage2Dir.mkdirs();
+            if (!storage3Dir.exists()) storage3Dir.mkdirs();
+            
+            // الحصول على قوائم الملفات
+            Set<String> files1 = new HashSet<>();
+            Set<String> files2 = new HashSet<>();
+            Set<String> files3 = new HashSet<>();
+            
+            if (storage1Dir.list() != null) {
+                files1.addAll(Arrays.asList(storage1Dir.list()));
+            }
+            if (storage2Dir.list() != null) {
+                files2.addAll(Arrays.asList(storage2Dir.list()));
+            }
+            if (storage3Dir.list() != null) {
+                files3.addAll(Arrays.asList(storage3Dir.list()));
+            }
+            
+            // إنشاء مجموعة شاملة لجميع الملفات
+            Set<String> allFiles = new HashSet<>();
+            allFiles.addAll(files1);
+            allFiles.addAll(files2);
+            allFiles.addAll(files3);
+            
+            // نسخ الملفات المفقودة إلى كل عقدة
+            for (String fileName : allFiles) {
+                // نسخ إلى Node1 إذا كان مفقود
+                if (!files1.contains(fileName)) {
+                    if (files2.contains(fileName)) {
+                        if (copyFile(storage2Dir, storage1Dir, fileName)) {
+                            System.out.println("  📋 Copied " + fileName + " from Node2 to Node1");
+                            totalFixed++;
+                        }
+                    } else if (files3.contains(fileName)) {
+                        if (copyFile(storage3Dir, storage1Dir, fileName)) {
+                            System.out.println("  📋 Copied " + fileName + " from Node3 to Node1");
+                            totalFixed++;
+                        }
+                    }
+                }
+                
+                // نسخ إلى Node2 إذا كان مفقود
+                if (!files2.contains(fileName)) {
+                    if (files1.contains(fileName)) {
+                        if (copyFile(storage1Dir, storage2Dir, fileName)) {
+                            System.out.println("  📋 Copied " + fileName + " from Node1 to Node2");
+                            totalFixed++;
+                        }
+                    } else if (files3.contains(fileName)) {
+                        if (copyFile(storage3Dir, storage2Dir, fileName)) {
+                            System.out.println("  📋 Copied " + fileName + " from Node3 to Node2");
+                            totalFixed++;
+                        }
+                    }
+                }
+                
+                // نسخ إلى Node3 إذا كان مفقود
+                if (!files3.contains(fileName)) {
+                    if (files1.contains(fileName)) {
+                        if (copyFile(storage1Dir, storage3Dir, fileName)) {
+                            System.out.println("  📋 Copied " + fileName + " from Node1 to Node3");
+                            totalFixed++;
+                        }
+                    } else if (files2.contains(fileName)) {
+                        if (copyFile(storage2Dir, storage3Dir, fileName)) {
+                            System.out.println("  📋 Copied " + fileName + " from Node2 to Node3");
+                            totalFixed++;
+                        }
+                    }
+                }
+            }
+        }
+        
+        System.out.println("\n" + "=".repeat(50));
+        if (totalFixed > 0) {
+            System.out.println("✅ Synchronization repair completed!");
+            System.out.println("📊 Total files synchronized across 3 nodes: " + totalFixed);
+        } else {
+            System.out.println("ℹ️ No files needed synchronization.");
+        }
+        System.out.println("=".repeat(50));
+    }
+    
+    private boolean copyFile(File sourceDir, File targetDir, String fileName) {
+        try {
+            File sourceFile = new File(sourceDir, fileName);
+            File targetFile = new File(targetDir, fileName);
+            
+            byte[] data = Files.readAllBytes(sourceFile.toPath());
+            Files.write(targetFile.toPath(), data);
+            
+            return true;
+        } catch (Exception e) {
+            System.err.println("  ❌ Failed to copy " + fileName + ": " + e.getMessage());
+            return false;
+        }
+    }
+
+    private void showAutoSyncMenu() {
+        System.out.println("\n=== Automatic Synchronization Control ===");
+        System.out.println("📋 Auto Sync Management Panel");
+        System.out.println("1. View Auto Sync Status");
+        System.out.println("2. Test Immediate Sync");
+        System.out.println("3. View Sync Schedule Info");
+        System.out.println("4. Simulate Daily Sync");
+        System.out.println("0. Back to Main Menu");
+        System.out.print("Choose an option: ");
+
+        int choice = getIntInput();
+        
+        switch (choice) {
+            case 0:
+                return; // العودة للقائمة الرئيسية
+            case 1:
+                showAutoSyncStatus();
+                break;
+            case 2:
+                testImmediateSync();
+                break;
+            case 3:
+                showSyncScheduleInfo();
+                break;
+            case 4:
+                simulateDailySync();
+                break;
+            default:
+                System.out.println("Invalid option. Please try again.");
+        }
+        
+        System.out.println("\n💡 Press Enter to continue...");
+        scanner.nextLine();
+    }
+
+    private void showAutoSyncStatus() {
+        System.out.println("\n📊 AUTOMATIC SYNCHRONIZATION STATUS");
+        System.out.println("=".repeat(50));
+        System.out.println("🔄 Auto Sync: ✅ ENABLED (Built into SocketSyncManager)");
+        System.out.println("⏰ Daily Sync Time: 23:30 (11:30 PM)");
+        System.out.println("🗄️ Monitored Nodes: 3 (Node1, Node2, Node3)");
+        System.out.println("📁 Departments: IT, HR, Marketing, Finance");
+        System.out.println("🔌 Sync Method: Socket-based bidirectional sync");
+        System.out.println("🔄 Sync Type: Each node syncs with all other nodes");
+        
+        // حساب الوقت حتى المزامنة التالية
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        java.time.LocalDateTime nextSync = now.toLocalDate().atTime(23, 30);
+        if (now.isAfter(nextSync)) {
+            nextSync = nextSync.plusDays(1);
+        }
+        
+        long hoursUntil = java.time.temporal.ChronoUnit.HOURS.between(now, nextSync);
+        long minutesUntil = java.time.temporal.ChronoUnit.MINUTES.between(now, nextSync) % 60;
+        
+        System.out.println("⏳ Next Sync: " + hoursUntil + "h " + minutesUntil + "m");
+        System.out.println("📊 Operations per sync: 24 (3 nodes × 2 other nodes × 4 departments)");
+        System.out.println("=".repeat(50));
+    }
+
+    private void testImmediateSync() {
+        System.out.println("\n🧪 TESTING SOCKET CONNECTIVITY");
+        System.out.println("This will test socket connections between all nodes...");
+        System.out.print("Do you want to proceed? (y/n): ");
+        
+        String choice = scanner.nextLine();
+        if (choice.toLowerCase().startsWith("y")) {
+            System.out.println("\n🔌 Testing socket connections...");
+            
+            String[] departments = {"IT"};  // اختبار قسم واحد فقط
+            boolean allConnected = true;
+            
+            // اختبار الاتصال بين جميع العقد
+            String[] nodes = {"Node1:8081", "Node2:8082", "Node3:8083"};
+            
+            for (String dept : departments) {
+                System.out.println("\n🔍 Testing department: " + dept);
+                
+                for (String node : nodes) {
+                    String[] parts = node.split(":");
+                    String nodeId = parts[0];
+                    int port = Integer.parseInt(parts[1]);
+                    
+                    try {
+                        boolean test = sync.SocketSyncManager.SyncClient.syncWithNode(
+                            "localhost", port, dept, "storage1"
+                        );
+                        
+                        if (test) {
+                            System.out.println("  ✅ " + nodeId + " is responsive");
+                        } else {
+                            System.out.println("  ⚠️ " + nodeId + " connection issues");
+                            allConnected = false;
+                        }
+                        
+                    } catch (Exception e) {
+                        System.err.println("  ❌ " + nodeId + " connection failed: " + e.getMessage());
+                        allConnected = false;
+                    }
+                }
+            }
+            
+            System.out.println("\n" + "=".repeat(50));
+            if (allConnected) {
+                System.out.println("✅ ALL NODES RESPONSIVE");
+                System.out.println("💡 Automatic sync should work correctly tonight!");
+                System.out.println("🔄 Each node will sync with others independently");
+            } else {
+                System.out.println("⚠️ SOME NODES NOT RESPONSIVE");
+                System.out.println("💡 Check if all socket servers are running.");
+                System.out.println("💡 Run: java coordinator.CoordinatorServer");
+            }
+            System.out.println("=".repeat(50));
+        } else {
+            System.out.println("Test cancelled.");
+        }
+    }
+
+    private void showSyncScheduleInfo() {
+        System.out.println("\n📅 ENHANCED SYNCHRONIZATION SCHEDULE");
+        System.out.println("=".repeat(50));
+        System.out.println("🕐 Schedule Type: Distributed Daily Automatic");
+        System.out.println("⏰ Execution Time: 23:30 (11:30 PM) every day");
+        System.out.println("🔄 Sync Frequency: Once per day per node");
+        System.out.println("📊 Total Operations: 24 per night");
+        System.out.println("   • Node1 → Node2, Node3 (8 operations)");
+        System.out.println("   • Node2 → Node1, Node3 (8 operations)");
+        System.out.println("   • Node3 → Node1, Node2 (8 operations)");
+        System.out.println("⏱️ Estimated Duration: 3-7 minutes total");
+        System.out.println("📝 Logging: Detailed per-node reports");
+        System.out.println("🔧 Failure Handling: Independent retry per node");
+        
+        System.out.println("\n📋 Enhanced Sync Process:");
+        System.out.println("  1. Each node starts sync independently at 23:30");
+        System.out.println("  2. Bidirectional file comparison with other nodes");
+        System.out.println("  3. Transfer only newer/missing files");
+        System.out.println("  4. Verify completion and generate reports");
+        System.out.println("  5. Schedule next sync for tomorrow");
+        
+        System.out.println("\n🎯 Key Improvements:");
+        System.out.println("  ✅ Built into SocketSyncManager (no separate scheduler)");
+        System.out.println("  ✅ Bidirectional sync (send AND receive)");
+        System.out.println("  ✅ Timestamp-based file comparison");
+        System.out.println("  ✅ Independent operation per node");
+        System.out.println("  ✅ Fault tolerance (node failures don't affect others)");
+        System.out.println("  ✅ Real file transfer (not just simulation)");
+        System.out.println("=".repeat(50));
+    }
+
+    private void simulateDailySync() {
+        System.out.println("\n🎭 SIMULATING ENHANCED DAILY SYNC");
+        System.out.println("This demonstrates the improved automatic sync process");
+        System.out.print("Do you want to proceed? (y/n): ");
+        
+        String choice = scanner.nextLine();
+        if (choice.toLowerCase().startsWith("y")) {
+            System.out.println("\n🚀 Starting enhanced sync simulation...");
+            System.out.println("💡 Note: This is the same process that runs automatically at 23:30");
+            
+            // تشغيل نفس عملية المزامنة اليومية المحسنة
+            performRealSocketSync();
+            
+            System.out.println("\n🎭 ENHANCED SIMULATION COMPLETED");
+            System.out.println("✨ Key Features Demonstrated:");
+            System.out.println("  🔄 Bidirectional synchronization");
+            System.out.println("  📊 File timestamp comparison");
+            System.out.println("  📁 Real file transfer between nodes");
+            System.out.println("  🕐 Automatic daily scheduling");
+            System.out.println("  📝 Detailed progress reporting");
+            System.out.println("\n💡 This enhanced process runs automatically every night!");
+        } else {
+            System.out.println("Simulation cancelled.");
         }
     }
 

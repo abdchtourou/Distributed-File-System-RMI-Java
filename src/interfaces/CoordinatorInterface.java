@@ -1,4 +1,5 @@
-package interfaces;// CoordinatorInterface.java - واجهة RMI
+package interfaces;
+
 import model.User;
 
 import java.rmi.Remote;

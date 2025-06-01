@@ -90,25 +90,29 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
 
         // نشر الملف على جميع العقد  
         boolean success = true;
-//        for (NodeInterface node : nodes) {
-//            try {
-//                success = success && node.storeFile(department, fileName, fileData);
-//            } catch (RemoteException e) {
-//                // تسجيل الخطأ وتجاهل العقدة التي فشلت
-//                System.err.println("Error uploading to node: " + e.getMessage());
-//                success = false;
-//            }
-//        }
-        System.out.println("/////////////////////");
+        System.out.println("🔄 Starting RMI synchronization...");
+        
         for (int i = 0; i < nodes.size(); i++) {
             NodeInterface node = nodes.get(i);
             try {
-                System.out.println("📤 Trying to upload to node #" + i);
-                success = success && node.storeFile(department, fileName, fileData);
+                System.out.println("📤 Uploading to node #" + (i+1) + "...");
+                boolean nodeSuccess = node.storeFile(department, fileName, fileData);
+                if (nodeSuccess) {
+                    System.out.println("✅ Successfully uploaded to node #" + (i+1));
+                } else {
+                    System.out.println("❌ Failed to upload to node #" + (i+1));
+                    success = false;
+                }
             } catch (RemoteException e) {
-                System.err.println("❌ Failed to upload to node #" + i + ": " + e.getMessage());
+                System.err.println("❌ Error uploading to node #" + (i+1) + ": " + e.getMessage());
                 success = false;
             }
+        }
+        
+        if (success) {
+            System.out.println("✅ RMI synchronization completed successfully!");
+        } else {
+            System.out.println("⚠️ RMI synchronization completed with some errors.");
         }
 
         return success;
