@@ -9,6 +9,5 @@ public interface NodeInterface extends Remote {
     boolean deleteFile(String department, String fileName) throws RemoteException;
     boolean synchronize() throws RemoteException;
     boolean isAlive() throws RemoteException;
-    // ✅ الإضافة الجديدة:
     List<String> listFiles(String department) throws RemoteException;
 }

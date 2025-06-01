@@ -18,12 +18,10 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
         this.nodeId = nodeId;
         this.baseStoragePath = storagePath;
 
-        // إنشاء مجلدات الأقسام  
         createDepartmentFolders();
     }
 
     private void createDepartmentFolders() {
-        // إنشاء المجلدات الرئيسية للأقسام  
         String[] departments = {"IT", "HR", "Marketing", "Finance"};
         for (String dept : departments) {
             File deptFolder = new File(baseStoragePath + File.separator + dept);
@@ -37,7 +35,6 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
     public boolean storeFile(String department, String fileName, byte[] data) throws RemoteException {
         String filePath = getFilePath(department, fileName);
 
-        // استخدام قفل الكتابة لمنع القراءة المتزامنة  
         ReadWriteLock lock = getFileLock(department, fileName);
         lock.writeLock().lock();
 
@@ -63,7 +60,6 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
     public byte[] retrieveFile(String department, String fileName) throws RemoteException {
         String filePath = getFilePath(department, fileName);
 
-        // استخدام قفل القراءة (يسمح بقراءات متعددة متزامنة)  
         ReadWriteLock lock = getFileLock(department, fileName);
         lock.readLock().lock();
 
@@ -91,12 +87,11 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
         String filePath = getFilePath(department, fileName);
 
         ReadWriteLock lock = getFileLock(department, fileName);
-        lock.writeLock().lock();  // نحتاج قفل كتابة لأننا نحذف
-
+        lock.writeLock().lock();
         try {
             File file = new File(filePath);
             if (file.exists()) {
-                return file.delete();  // يرجع true إذا حذف بنجاح
+                return file.delete();
             }
             return false;
         } finally {
@@ -106,8 +101,7 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
 
     @Override
     public boolean synchronize() throws RemoteException {
-        System.out.println("🔄 Synchronization triggered...");
-        // مكان الكود الفعلي للمزامنة مع عقد أخرى
+        System.out.println(" Synchronization triggered...");
         return true;
     }
 
@@ -117,7 +111,6 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
         return true;
     }
 
-    // الحصول على قفل للملف (إنشاء قفل جديد إذا لم يكن موجودًا)  
     private synchronized ReadWriteLock getFileLock(String department, String fileName) {
         String key = department + ":" + fileName;
         fileLocks.putIfAbsent(key, new ReentrantReadWriteLock());
@@ -144,5 +137,4 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
     }
 
 
-    // باقي التنفيذ...  
 }

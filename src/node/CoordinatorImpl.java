@@ -13,14 +13,12 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
     private Map<String, String> activeTokens = new ConcurrentHashMap<>();
     private List<NodeInterface> nodes = new ArrayList<>();
 
-    // متغير لتتبع آخر عقدة تم استخدامها (للتوازن في الحمل)  
     private int lastUsedNodeIndex = 0;
 
     public CoordinatorImpl() throws RemoteException {
         super();
     }
 
-    // تسجيل عقدة جديدة  
     public void registerNode(NodeInterface node) {
         nodes.add(node);
     }
@@ -31,7 +29,7 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
 
         User reqUser = users.get(requester);
         if (!"manager".equals(reqUser.getRole())) {
-            return null; // فقط المدير يقدر يشوف صلاحيات غيره
+            return null;
         }
 
         User targetUser = users.get(targetUsername);
@@ -42,7 +40,7 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
 
     @Override
     public User getUserInfo(String username) throws RemoteException {
-        return users.get(username); // بشرط أن كائن User implement Serializable
+        return users.get(username);
     }
 
     @Override
@@ -67,14 +65,12 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
 
     @Override
     public boolean setPermissions(String managerToken, String username, List<String> permissions) throws RemoteException {
-        // التحقق من صلاحيات المدير  
         String managerUsername = activeTokens.get(managerToken);
         if (managerUsername == null) return false;
 
         User manager = users.get(managerUsername);
         if (!manager.getRole().equals("manager")) return false;
 
-        // تعيين الصلاحيات  
         User user = users.get(username);
         if (user != null) {
             user.setPermissions(permissions);
@@ -85,10 +81,8 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
 
     @Override
     public boolean uploadFile(String token, String department, String fileName, byte[] fileData) throws RemoteException {
-        // التحقق من الصلاحيات  
         if (!validateAccess(token, department, "write")) return false;
 
-        // نشر الملف على جميع العقد  
         boolean success = true;
         System.out.println("🔄 Starting RMI synchronization...");
         
@@ -98,21 +92,21 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
                 System.out.println("📤 Uploading to node #" + (i+1) + "...");
                 boolean nodeSuccess = node.storeFile(department, fileName, fileData);
                 if (nodeSuccess) {
-                    System.out.println("✅ Successfully uploaded to node #" + (i+1));
+                    System.out.println(" Successfully uploaded to node #" + (i+1));
                 } else {
-                    System.out.println("❌ Failed to upload to node #" + (i+1));
+                    System.out.println(" Failed to upload to node #" + (i+1));
                     success = false;
                 }
             } catch (RemoteException e) {
-                System.err.println("❌ Error uploading to node #" + (i+1) + ": " + e.getMessage());
+                System.err.println(" Error uploading to node #" + (i+1) + ": " + e.getMessage());
                 success = false;
             }
         }
         
         if (success) {
-            System.out.println("✅ RMI synchronization completed successfully!");
+            System.out.println(" RMI synchronization completed successfully!");
         } else {
-            System.out.println("⚠️ RMI synchronization completed with some errors.");
+            System.out.println("️ RMI synchronization completed with some errors.");
         }
 
         return success;
@@ -137,16 +131,13 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
 
     @Override
     public boolean updateFile(String token, String department, String fileName, byte[] newData) throws RemoteException {
-        // نفس منطق uploadFile
         return uploadFile(token, department, fileName, newData);
     }
 
     @Override
     public byte[] viewFile(String token, String targetDepartment, String fileName) throws RemoteException {
-        // التحقق من الصلاحيات  
         if (!validateAccess(token, targetDepartment, "read")) return null;
 
-        // توزيع الحمل (Round Robin)  
         for (int attempt = 0; attempt < nodes.size(); attempt++) {
             int nodeIndex = (lastUsedNodeIndex + attempt) % nodes.size();
             try {
@@ -156,7 +147,6 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
                     return fileData;
                 }
             } catch (RemoteException e) {
-                // تسجيل الخطأ والانتقال للعقدة التالية  
                 System.err.println("Error retrieving from node " + nodeIndex + ": " + e.getMessage());
             }
         }
@@ -179,11 +169,10 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
                 System.err.println("Error listing files from node " + nodeIndex + ": " + e.getMessage());
             }
         }
-        return Collections.emptyList(); // في حال لم نجد ملفات
+        return Collections.emptyList();
     }
 
 
-    // دوال المساعدة  
     private boolean validateAccess(String token, String department, String operation) {
         String username = activeTokens.get(token);
         if (username == null) return false;
@@ -191,7 +180,6 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
         User user = users.get(username);
         if (user == null) return false;
 
-        // مدير القسم يمكنه الكتابة في قسمه فقط  
         if (operation.equals("write") && !user.getDepartment().equals(department)) {
             return false;
         }
@@ -200,7 +188,7 @@ public class CoordinatorImpl extends UnicastRemoteObject implements CoordinatorI
     }
 
     private String generateToken(String username) {
-        // إنشاء رمز عشوائي  
+
         return UUID.randomUUID().toString();
     }
 
