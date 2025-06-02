@@ -5,6 +5,7 @@ import model.User;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.util.List;
+import java.util.Map;
 
 public interface CoordinatorInterface extends Remote {
     User getUserInfo(String username) throws RemoteException;
@@ -19,5 +20,13 @@ public interface CoordinatorInterface extends Remote {
     byte[] viewFile(String token, String targetDepartment, String fileName) throws RemoteException;
     List<String> listFiles(String token, String targetDepartment) throws RemoteException;
     List<String> getUserPermissions(String requesterToken, String targetUsername) throws RemoteException;
+    
+    // File locking monitoring
+    Map<String, String> getCurrentLocks() throws RemoteException;
+    String isFileLocked(String department, String fileName) throws RemoteException;
+    
+    // Explicit lock management for file selection
+    boolean acquireUpdateLock(String token, String department, String fileName) throws RemoteException;
+    boolean releaseUpdateLock(String token, String department, String fileName) throws RemoteException;
 
 }

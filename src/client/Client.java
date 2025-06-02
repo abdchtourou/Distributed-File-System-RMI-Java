@@ -72,17 +72,33 @@ public class Client {
 
     private void showMainMenu() {
         System.out.println("\n=== File Management System ===");
-        System.out.println("Welcome, " + username + " (" + role + " - " + department + ")");
-        System.out.println("1. Upload File");
-        System.out.println("2. Download File");
-        System.out.println("3. View Files in My Department");
-        System.out.println("4. View Files in Other Department");
-        System.out.println("5. Delete File");
+        
+        try {
+            User currentUser = coordinator.getUserInfo(username);
+            if (currentUser != null) {
+                System.out.println("Welcome, " + username + " (" + role + " - " + department + ")");
+                System.out.println("🔑 Your permissions: " + currentUser.getPermissions());
+            }
+        } catch (RemoteException e) {
+            System.out.println("Welcome, " + username + " (" + role + " - " + department + ")");
+        }
+        
+        System.out.println("\n📋 Available Operations:");
+        if ("manager".equals(role)) {
+            System.out.println("1. Upload File (any department - requires: write permission)");
+        } else {
+            System.out.println("1. Upload File (own department - requires: write permission)");
+        }
+        System.out.println("2. Download File (requires: read permission)");
+        System.out.println("3. View Files in My Department (requires: read permission)");
+        System.out.println("4. View Files in Other Department (managers only)");
+        System.out.println("5. Delete File (own department - requires: delete permission)");
+        System.out.println("6. Update File (requires: write permission)");
 
         if ("manager".equals(role)) {
-            System.out.println("6. Manage User Permissions");
-            System.out.println("7. Manual Socket Synchronization");
-            System.out.println("8. Auto Sync Status & Control");
+            System.out.println("7. Manage User Permissions");
+            System.out.println("8. Manual Socket Synchronization");
+            System.out.println("9. Auto Sync Status & Control");
         }
 
         System.out.println("0. Logout");
@@ -112,20 +128,23 @@ public class Client {
                     deleteFile();
                     break;
                 case 6:
-                    if ("manager".equals(role)) {
-                        managePermissions();
-                    } else {
-                        System.out.println("Invalid option. Please try again.");
-                    }
+                    updateFile();
                     break;
                 case 7:
                     if ("manager".equals(role)) {
-                        startSocketSynchronization();
+                        managePermissions();
                     } else {
                         getUserinfo();
                     }
                     break;
                 case 8:
+                    if ("manager".equals(role)) {
+                        startSocketSynchronization();
+                    } else {
+                        System.out.println("Invalid option. Please try again.");
+                    }
+                    break;
+                case 9:
                     if ("manager".equals(role)) {
                         showAutoSyncMenu();
                     } else {
@@ -214,28 +233,57 @@ public class Client {
     }
 
     private void uploadFile() throws IOException, RemoteException {
+        User currentUser = coordinator.getUserInfo(username);
+        if (currentUser == null || !currentUser.hasPermission("write")) {
+            System.out.println(" Access denied. You don't have write permission.");
+            System.out.println(" Ask your manager to grant you write permission.");
+            return;
+        }
+
+        String targetDepartment = department;
+        
+        if ("manager".equals(role)) {
+            System.out.println(" As a manager, you can upload to any department.");
+            System.out.println(" Available departments: IT, HR, Marketing, Finance");
+            System.out.print("Enter target department (or press Enter for your department '" + department + "'): ");
+            String input = scanner.nextLine().trim();
+            if (!input.isEmpty()) {
+                targetDepartment = input;
+                System.out.println(" Target department set to: " + targetDepartment);
+            } else {
+                System.out.println(" Using your department: " + department);
+            }
+        }
+
         System.out.print("Enter path of the file to upload: ");
         String path = scanner.nextLine();
         File file = new File(path);
         if (!file.exists()) {
-            System.out.println("File does not exist.");
+            System.out.println(" File does not exist.");
             return;
         }
 
         byte[] fileData = Files.readAllBytes(file.toPath());
         String filename = file.getName();
-        coordinator.uploadFile(userToken, department, filename, fileData);
-        System.out.println("File uploaded successfully.");
+        boolean success = coordinator.uploadFile(userToken, targetDepartment, filename, fileData);
+        
+        if (success) {
+            System.out.println(" File uploaded successfully to department: " + targetDepartment);
+        } else {
+            System.out.println(" Failed to upload file. Check your permissions or department name.");
+        }
     }
 
 
     private void listFiles(String dept) throws RemoteException {
         List<String> files = coordinator.listFiles(userToken, dept);
-        if (files.isEmpty()) {
-            System.out.println("No files available.");
+        if (files == null) {
+            System.out.println(" Failed to retrieve files. Access denied or department does not exist.");
+        } else if (files.isEmpty()) {
+            System.out.println(" No files available in department '" + dept + "'.");
         } else {
-            System.out.println("Files in department '" + dept + "':");
-            files.forEach(f -> System.out.println("- " + f));
+            System.out.println(" Files in department '" + dept + "':");
+            files.forEach(f -> System.out.println("   " + f));
         }
     }
 
@@ -246,37 +294,211 @@ public class Client {
             System.out.println("You are already in this department. Use option 3 instead.");
             return;
         }
+        
+        if (!"manager".equals(role)) {
+            System.out.println(" Access denied. Regular users can only view files in their own department (" + department + ").");
+            System.out.println(" Only managers can view files from other departments.");
+            return;
+        }
+        
         listFiles(dept);
     }
 
     private void deleteFile() throws RemoteException {
+        User currentUser = coordinator.getUserInfo(username);
+        if (currentUser == null || !currentUser.hasPermission("delete")) {
+            System.out.println(" Access denied. You don't have delete permission.");
+            System.out.println(" Ask your manager to grant you delete permission.");
+            return;
+        }
+
         System.out.print("Enter name of the file to delete: ");
         String filename = scanner.nextLine();
         boolean success = coordinator.deleteFile(userToken, department, filename);
 
         if (success) {
-            System.out.println("File deleted successfully.");
+            System.out.println(" File deleted successfully.");
         } else {
-            System.out.println("Failed to delete file. Access denied or file does not exist.");
+            System.out.println(" Failed to delete file. Access denied or file does not exist.");
         }
     }
 
-    private void managePermissions() throws RemoteException {
-        System.out.print("Enter username to update permissions: ");
-        String uname = scanner.nextLine();
-
-        System.out.print("Enter permissions (comma separated, e.g., read,write): ");
-        String[] perms = scanner.nextLine().split(",");
-        List<String> permissions = new ArrayList<>();
-        for (String perm : perms) {
-            permissions.add(perm.trim().toLowerCase());
+    private void updateFile() throws IOException, RemoteException {
+        User currentUser = coordinator.getUserInfo(username);
+        if (currentUser == null || !currentUser.hasPermission("write")) {
+            System.out.println(" Access denied. You don't have write permission.");
+            System.out.println(" Ask your manager to grant you write permission.");
+            return;
         }
 
-        boolean success = coordinator.setPermissions(userToken, uname, permissions);
-        if (success) {
-            System.out.println(" User permissions updated successfully.");
-        } else {
-            System.out.println(" Failed to update permissions. Make sure the username is correct and you have manager rights.");
+        String targetDepartment = department;
+        
+        if ("manager".equals(role)) {
+            System.out.println(" As a manager, you can update files in any department.");
+            System.out.println(" Available departments: IT, HR, Marketing, Finance");
+            System.out.print("Enter target department (or press Enter for your department '" + department + "'): ");
+            String input = scanner.nextLine().trim();
+            if (!input.isEmpty()) {
+                targetDepartment = input;
+                System.out.println(" Target department set to: " + targetDepartment);
+            } else {
+                System.out.println(" Using your department: " + department);
+            }
+        }
+
+        System.out.println("\n Files available for update in " + targetDepartment + ":");
+        try {
+            List<String> files = coordinator.listFiles(userToken, targetDepartment);
+            if (files == null || files.isEmpty()) {
+                System.out.println(" No files available in department '" + targetDepartment + "'.");
+                return;
+            }
+            
+            Map<String, String> currentLocks = coordinator.getCurrentLocks();
+            List<String> availableFiles = new ArrayList<>();
+            
+            System.out.println("   Status | File Name");
+            System.out.println("   -------|----------");
+            
+            for (String fileName : files) {
+                String fileKey = targetDepartment + ":" + fileName;
+                String lockOwner = currentLocks.get(fileKey);
+                
+                if (lockOwner != null) {
+                    if (lockOwner.equals(username)) {
+                        System.out.println("    YOU | " + fileName + " (locked by you)");
+                        availableFiles.add(fileName);
+                    } else {
+                        System.out.println("    LOCK| " + fileName + " (locked by: " + lockOwner + ")");
+                    }
+                } else {
+                    System.out.println("   ✅ FREE| " + fileName);
+                    availableFiles.add(fileName);
+                }
+            }
+            
+            if (availableFiles.isEmpty()) {
+                System.out.println("\n No files are available for update right now.");
+                System.out.println(" All files are currently being updated by other users.");
+                System.out.println(" Please try again later or wait for the locks to be released.");
+                return;
+            }
+            
+            System.out.println("\n Available files for update: " + availableFiles.size() + "/" + files.size());
+            System.out.println(" You can only select files marked as 'FREE' or locked by 'YOU'");
+            
+        } catch (RemoteException e) {
+            System.out.println(" Could not retrieve file list: " + e.getMessage());
+            return;
+        }
+
+        System.out.print("\nEnter name of the file to update (only FREE or YOUR locked files): ");
+        String fileName = scanner.nextLine().trim();
+        
+        if (fileName.isEmpty()) {
+            System.out.println(" File name cannot be empty.");
+            return;
+        }
+
+        try {
+            String lockOwner = coordinator.isFileLocked(targetDepartment, fileName);
+            if (lockOwner != null && !lockOwner.equals(username)) {
+                System.out.println(" SELECTION DENIED: File '" + fileName + "' is currently being updated by user: " + lockOwner);
+                System.out.println(" You cannot select this file until the other user completes their update.");
+                System.out.println(" Please wait for the lock to be released and try again.");
+                return;
+            } else if (lockOwner != null && lockOwner.equals(username)) {
+                System.out.println(" File '" + fileName + "' is already locked by you. Continuing with update...");
+            } else {
+                System.out.println(" File '" + fileName + "' is available for update.");
+                
+                System.out.println(" Acquiring update lock for file '" + fileName + "'...");
+                boolean lockAcquired = coordinator.acquireUpdateLock(userToken, targetDepartment, fileName);
+                if (!lockAcquired) {
+                    System.out.println(" LOCK ACQUISITION FAILED: Another user acquired the lock just now.");
+                    System.out.println(" Please try again - the file list will be refreshed.");
+                    return;
+                } else {
+                    System.out.println(" LOCK ACQUIRED: You now have exclusive access to update '" + fileName + "'");
+                    System.out.println("️ Remember: Other users will now see this file as locked until you complete or cancel the update.");
+                }
+            }
+        } catch (RemoteException e) {
+            System.out.println("️ Could not check file lock status: " + e.getMessage());
+            return;
+        }
+
+        boolean lockAcquiredByUs = false;
+        try {
+            String currentLockOwner = coordinator.isFileLocked(targetDepartment, fileName);
+            lockAcquiredByUs = (currentLockOwner != null && currentLockOwner.equals(username));
+
+            System.out.print("Enter path of the new file content (or 'cancel' to abort): ");
+            String path = scanner.nextLine().trim();
+            
+            if (path.equalsIgnoreCase("cancel")) {
+                System.out.println(" Update cancelled by user.");
+                return;
+            }
+            
+            File file = new File(path);
+            if (!file.exists()) {
+                System.out.println(" New content file does not exist.");
+                return;
+            }
+
+            byte[] newData = Files.readAllBytes(file.toPath());
+            
+            boolean success = false;
+            int maxRetries = 3;
+            int retryCount = 0;
+            
+            System.out.println("\n Starting update process...");
+            
+            while (!success && retryCount < maxRetries) {
+                if (retryCount > 0) {
+                    System.out.println(" Retry attempt " + retryCount + "/" + maxRetries + "...");
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
+                
+                success = coordinator.updateFile(userToken, targetDepartment, fileName, newData);
+                
+                if (!success) {
+                    retryCount++;
+                    if (retryCount < maxRetries) {
+                        System.out.println("⏳ Update failed. Waiting before retry...");
+                    }
+                }
+            }
+            
+            if (success) {
+                System.out.println(" File updated successfully in department: " + targetDepartment);
+                System.out.println(" Updated file: " + fileName + " (" + newData.length + " bytes)");
+            } else {
+                System.out.println(" Failed to update file after " + maxRetries + " attempts.");
+                System.out.println(" Possible reasons:");
+                System.out.println("   • Network or server issues");
+                System.out.println("   • File system errors on storage nodes");
+            }
+            
+        } finally {
+            if (lockAcquiredByUs) {
+                try {
+                    boolean released = coordinator.releaseUpdateLock(userToken, targetDepartment, fileName);
+                    if (released) {
+                        System.out.println(" UPDATE LOCK RELEASED: File '" + fileName + "' is now available for other users.");
+                    } else {
+                        System.out.println("️ Warning: Could not release update lock for '" + fileName + "'");
+                    }
+                } catch (RemoteException e) {
+                    System.out.println("️ Error releasing lock: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -298,6 +520,12 @@ public class Client {
     private void downloadFile() throws RemoteException {
         System.out.print("Enter department name of the file: ");
         String dept = scanner.nextLine();
+        
+        if (!dept.equals(department) && !"manager".equals(role)) {
+            System.out.println(" Access denied. Regular users can only download files from their own department (" + department + ").");
+            System.out.println(" Only managers can download files from other departments.");
+            return;
+        }
 
         System.out.print("Enter filename to download: ");
         String filename = scanner.nextLine();
@@ -335,9 +563,9 @@ public class Client {
                 });
                 
                 syncThread.start();
-                syncThread.join(); // انتظار انتهاء المزامنة
+                syncThread.join();
                 
-                System.out.println("💡 Press Enter to continue...");
+                System.out.println(" Press Enter to continue...");
                 scanner.nextLine();
                 
             } catch (Exception e) {
@@ -355,7 +583,7 @@ public class Client {
         int totalSynced = 0;
         
         for (String dept : departments) {
-            System.out.println("\n🔍 Synchronizing department: " + dept);
+            System.out.println("\n Synchronizing department: " + dept);
             
             try {
                 boolean success1to2 = sync.SocketSyncManager.SyncClient.syncWithNode(
@@ -386,7 +614,6 @@ public class Client {
                     System.out.println("️ Department " + dept + " synchronization had issues");
                 }
                 
-                // انتظار قصير بين الأقسام
                 Thread.sleep(500);
                 
             } catch (Exception e) {
@@ -630,7 +857,7 @@ public class Client {
     private void showAutoSyncStatus() {
         System.out.println("\n AUTOMATIC SYNCHRONIZATION STATUS");
         System.out.println("=".repeat(50));
-        System.out.println(" Auto Sync: ✅ ENABLED (Built into SocketSyncManager)");
+        System.out.println(" Auto Sync:  ENABLED (Built into SocketSyncManager)");
         System.out.println(" Daily Sync Time: 23:30 (11:30 PM)");
         System.out.println("️ Monitored Nodes: 3 (Node1, Node2, Node3)");
         System.out.println(" Departments: IT, HR, Marketing, Finance");
@@ -750,7 +977,6 @@ public class Client {
             System.out.println("\n Starting enhanced sync simulation...");
             System.out.println(" Note: This is the same process that runs automatically at 23:30");
             
-            // تشغيل نفس عملية المزامنة اليومية المحسنة
             performRealSocketSync();
             
             System.out.println("\n ENHANCED SIMULATION COMPLETED");
@@ -763,6 +989,59 @@ public class Client {
             System.out.println("\n This enhanced process runs automatically every night!");
         } else {
             System.out.println("Simulation cancelled.");
+        }
+    }
+
+    private void managePermissions() throws RemoteException {
+        System.out.println("\n=== User Permission Management ===");
+        System.out.print("Enter username to update permissions: ");
+        String uname = scanner.nextLine();
+
+        try {
+            List<String> currentPerms = coordinator.getUserPermissions(userToken, uname);
+            if (currentPerms != null) {
+                System.out.println(" Current permissions for " + uname + ": " + currentPerms);
+            } else {
+                System.out.println(" Cannot retrieve current permissions. User may not exist or you lack manager rights.");
+                return;
+            }
+        } catch (Exception e) {
+            System.out.println("️ Could not retrieve current permissions: " + e.getMessage());
+        }
+
+        System.out.println("\n Available permissions:");
+        System.out.println("  • read    - View and download files");
+        System.out.println("  • write   - Upload and update files");
+        System.out.println("  • delete  - Delete files");
+        System.out.println("\n Examples:");
+        System.out.println("  • read only: read");
+        System.out.println("  • read + write: read,write");
+        System.out.println("  • full access: read,write,delete");
+        
+        System.out.print("\nEnter new permissions (comma separated): ");
+        String[] perms = scanner.nextLine().split(",");
+        List<String> permissions = new ArrayList<>();
+        
+        for (String perm : perms) {
+            String cleanPerm = perm.trim().toLowerCase();
+            if (cleanPerm.equals("read") || cleanPerm.equals("write") || cleanPerm.equals("delete")) {
+                permissions.add(cleanPerm);
+            } else if (!cleanPerm.isEmpty()) {
+                System.out.println("️ Invalid permission: " + cleanPerm + " (ignored)");
+            }
+        }
+
+        if (permissions.isEmpty()) {
+            System.out.println(" No valid permissions provided. Operation cancelled.");
+            return;
+        }
+
+        boolean success = coordinator.setPermissions(userToken, uname, permissions);
+        if (success) {
+            System.out.println(" User permissions updated successfully!");
+            System.out.println(" New permissions for " + uname + ": " + permissions);
+        } else {
+            System.out.println(" Failed to update permissions. Make sure the username is correct and you have manager rights.");
         }
     }
 

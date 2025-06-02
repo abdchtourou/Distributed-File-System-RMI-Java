@@ -20,7 +20,7 @@ public class SocketSyncManager {
     private ExecutorService executor;
     
     private final ScheduledExecutorService autoSyncScheduler;
-    private final LocalTime dailySyncTime = LocalTime.of(23, 30); // 11:30 PM
+    private final LocalTime dailySyncTime = LocalTime.of(23, 30);
     private boolean autoSyncEnabled = true;
     
     private final List<NodeInfo> otherNodes = new ArrayList<>();
@@ -152,7 +152,7 @@ public class SocketSyncManager {
             System.out.println("️ [" + nodeId + "] Some sync operations failed.");
         }
         
-        System.out.println("⏰ [" + nodeId + "] Next sync tomorrow at: " + dailySyncTime);
+        System.out.println(" [" + nodeId + "] Next sync tomorrow at: " + dailySyncTime);
         System.out.println("=".repeat(60));
     }
     
@@ -396,8 +396,7 @@ public class SocketSyncManager {
             Path filePath = deptPath.resolve(fileName);
             Files.write(filePath, data);
             
-            // تحديث وقت التعديل للملف
-            Files.setLastModifiedTime(filePath, 
+            Files.setLastModifiedTime(filePath,
                 java.nio.file.attribute.FileTime.fromMillis(System.currentTimeMillis()));
             
             return true;
@@ -419,10 +418,7 @@ public class SocketSyncManager {
         return duration.toMinutes();
     }
 
-    
-    /**
-     * تنسيق مدة زمنية بالدقائق
-     */
+
     private String formatDuration(long minutes) {
         if (minutes < 60) {
             return minutes + " minutes";
@@ -455,7 +451,7 @@ public class SocketSyncManager {
     
 
     public void runImmediateFullSync() {
-        System.out.println("🚀 [" + nodeId + "] Starting immediate full sync...");
+        System.out.println(" [" + nodeId + "] Starting immediate full sync...");
         performAutomaticDailySync();
     }
 
@@ -467,19 +463,15 @@ public class SocketSyncManager {
                  ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
                  ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
                 
-                // طلب المزامنة
                 out.writeObject("SYNC_REQUEST");
                 out.writeObject(department);
                 
-                // إرسال قائمة ملفاتنا المحلية
                 Map<String, Long> localFiles = getLocalFiles(sourceStoragePath, department);
                 out.writeObject(localFiles);
                 
-                // استقبال قائمة الملفات التي ستُرسل إلينا
                 @SuppressWarnings("unchecked")
                 List<String> incomingFiles = (List<String>) in.readObject();
                 
-                // استقبال وحفظ الملفات
                 for (String fileName : incomingFiles) {
                     byte[] fileData = (byte[]) in.readObject();
                     if (fileData != null) {
@@ -492,7 +484,7 @@ public class SocketSyncManager {
                 return "SYNC_COMPLETE".equals(result);
                 
             } catch (Exception e) {
-                System.err.println("❌ Sync failed with " + targetHost + ":" + targetPort + 
+                System.err.println(" Sync failed with " + targetHost + ":" + targetPort +
                                  " - " + e.getMessage());
                 return false;
             }

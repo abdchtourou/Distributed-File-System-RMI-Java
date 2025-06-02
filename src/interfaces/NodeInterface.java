@@ -6,6 +6,7 @@ import java.util.List;
 public interface NodeInterface extends Remote {
     boolean storeFile(String department, String fileName, byte[] data) throws RemoteException;
     byte[] retrieveFile(String department, String fileName) throws RemoteException;
+    boolean updateFile(String department, String fileName, byte[] newData) throws RemoteException;
     boolean deleteFile(String department, String fileName) throws RemoteException;
     boolean synchronize() throws RemoteException;
     boolean isAlive() throws RemoteException;

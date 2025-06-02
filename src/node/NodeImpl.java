@@ -7,6 +7,8 @@ import java.rmi.server.UnicastRemoteObject;
 import java.util.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 
 public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
     private final String nodeId;
@@ -109,6 +111,60 @@ public class NodeImpl extends UnicastRemoteObject implements NodeInterface {
     @Override
     public boolean isAlive() throws RemoteException {
         return true;
+    }
+
+    @Override
+    public boolean updateFile(String department, String fileName, byte[] newData) throws RemoteException {
+        String filePath = getFilePath(department, fileName);
+
+        ReadWriteLock lock = getFileLock(department, fileName);
+        lock.writeLock().lock();
+
+        try {
+            File file = new File(filePath);
+            
+            if (!file.exists()) {
+                System.err.println("Cannot update file: " + fileName + " does not exist in " + department);
+                return false;
+            }
+
+            File backupFile = new File(filePath + ".backup");
+            try {
+                if (file.exists()) {
+                    Files.copy(file.toPath(), backupFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                System.err.println("Warning: Could not create backup for " + fileName + ": " + e.getMessage());
+            }
+
+            try (FileOutputStream fos = new FileOutputStream(file)) {
+                fos.write(newData);
+                
+                if (backupFile.exists()) {
+                    backupFile.delete();
+                }
+                
+                System.out.println("File updated successfully: " + department + "/" + fileName);
+                return true;
+                
+            } catch (IOException e) {
+                System.err.println("Error updating file: " + e.getMessage());
+                
+                try {
+                    if (backupFile.exists()) {
+                        Files.copy(backupFile.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        backupFile.delete();
+                        System.out.println("File restored from backup after update failure");
+                    }
+                } catch (IOException restoreError) {
+                    System.err.println("Critical: Could not restore file from backup: " + restoreError.getMessage());
+                }
+                
+                return false;
+            }
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
     private synchronized ReadWriteLock getFileLock(String department, String fileName) {
